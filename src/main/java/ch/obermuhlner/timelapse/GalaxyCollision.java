@@ -53,7 +53,7 @@ public class GalaxyCollision extends Application {
 
         int nStars1 = 5000;
         int nStars2 = 5000;
-        int nFrames = 2;
+        int nFrames = 1500;
         int startCollisionFrame = 1000;
 
         Polygon mountain = createMountain(width, height, height / 40, height / 5);
