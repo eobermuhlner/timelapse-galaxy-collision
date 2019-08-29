@@ -8,6 +8,9 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.WritableImage;
 import javafx.scene.paint.Color;
+import javafx.scene.paint.CycleMethod;
+import javafx.scene.paint.RadialGradient;
+import javafx.scene.paint.Stop;
 import javafx.stage.Stage;
 
 import javax.imageio.ImageIO;
@@ -24,6 +27,8 @@ public class GalaxyCollision extends Application {
     public static void main(String[] args) {
         launch(args);
     }
+
+    private Random random = new Random();
 
     @Override
     public void start(Stage primaryStage) throws Exception {
@@ -51,10 +56,9 @@ public class GalaxyCollision extends Application {
         int nFrames = 1500;
         int startCollisionFrame = 1000;
 
-        Random random = new Random();
         List<Star> stars = new ArrayList<>();
         for (int i = 0; i < nStars1; i++) {
-            stars.add(createStar(random, star -> {
+            stars.add(createStar(star -> {
                 star.x = random.nextDouble() * width;
                 star.y = random.nextDouble() * height;
             }));
@@ -62,7 +66,7 @@ public class GalaxyCollision extends Application {
 
         double galaxyRadius = Math.min(width, height);
         for (int i = 0; i < nStars2; i++) {
-            stars.add(createStar(random, star -> {
+            stars.add(createStar(star -> {
                 do {
                     star.x = random.nextGaussian() * galaxyRadius;
                 } while(star.x < -width);
@@ -85,7 +89,7 @@ public class GalaxyCollision extends Application {
 
         for (int i = 0; i < nFrames; i++) {
             System.out.println("Render " + i);
-            renderSky(i, canvas, stars, specialStars, random);
+            renderSky(i, canvas, stars, specialStars);
 
             if (i >= 400 && i % 10 == 0) {
                 Star star = stars.get(random.nextInt(stars.size()));
@@ -111,7 +115,7 @@ public class GalaxyCollision extends Application {
         }
     }
 
-    private Star createStar(Random random, Consumer<Star> locationFunc) {
+    private Star createStar(Consumer<Star> locationFunc) {
         Star star = new Star();
         locationFunc.accept(star);
 
@@ -130,17 +134,37 @@ public class GalaxyCollision extends Application {
         return star;
     }
 
-    private void renderSky(int imageIndex, Canvas canvas, List<Star> stars, List<Star> moreStars, Random random) {
+    private void renderSky(int imageIndex, Canvas canvas, List<Star> stars, List<Star> moreStars) {
         int width = (int) canvas.getWidth();
         int height = (int) canvas.getHeight();
 
+        // render background
         GraphicsContext gc = canvas.getGraphicsContext2D();
-        gc.setFill(Color.BLACK);
+        RadialGradient skyGradient = new RadialGradient(
+                0,
+                0,
+                width / 2,
+                height * 2,
+                height * 2,
+                false,
+                CycleMethod.NO_CYCLE,
+                new Stop(0, Color.TURQUOISE),
+                new Stop(0.8, new Color(0.0, 0.0, 0.15, 1.0)),
+                new Stop(1.0, new Color(0.0, 0.0, 0.1, 1.0)));
+        gc.setFill(skyGradient);
         gc.fillRect(0, 0, width, height);
 
-        renderStars(gc, stars, random);
-        renderStars(gc, moreStars, random);
+        // render stars
+        renderStars(gc, stars);
+        renderStars(gc, moreStars);
 
+        // render horizon
+        gc.setFill(Color.BLACK);
+        double[] xPoints = new double[]{ width, 0, width*0.0, width*0.2, width*0.4, width*0.6, width*0.8, width};
+        double[] yPoints = new double[]{ height, height, height-10, height-50, height-60, height-110, height-80, height-40};
+        gc.fillPolygon(xPoints, yPoints, xPoints.length);
+
+        // snapshot
         WritableImage image = new WritableImage(width, height);
         canvas.snapshot(null, image);
 
@@ -153,7 +177,7 @@ public class GalaxyCollision extends Application {
         }
     }
 
-    private void renderStars(GraphicsContext gc, List<Star> stars, Random random) {
+    private void renderStars(GraphicsContext gc, List<Star> stars) {
         for (Star star : stars) {
             double randomX = random.nextGaussian() * 0.1;
             double randomY = random.nextGaussian() * 0.1;
@@ -168,6 +192,14 @@ public class GalaxyCollision extends Application {
         gc.fillOval(star.x + offsetX - radius, star.y + offsetY - radius, radius * 2, radius * 2);
 
         star.step();
+    }
+
+    private double randomDouble(double min, double max) {
+        if (min == max) {
+            return min;
+        }
+
+        return random.nextDouble() * (max - min) + min;
     }
 
     private static double clamp(double value, double min, double max) {
