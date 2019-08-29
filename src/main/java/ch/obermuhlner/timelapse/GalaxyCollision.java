@@ -28,7 +28,7 @@ public class GalaxyCollision extends Application {
         launch(args);
     }
 
-    private Random random = new Random();
+    private Random random = new Random(1);
 
     @Override
     public void start(Stage primaryStage) throws Exception {
@@ -53,8 +53,10 @@ public class GalaxyCollision extends Application {
 
         int nStars1 = 5000;
         int nStars2 = 5000;
-        int nFrames = 1500;
+        int nFrames = 2;
         int startCollisionFrame = 1000;
+
+        Polygon mountain = createMountain(width, height, height / 40, height / 5);
 
         List<Star> stars = new ArrayList<>();
         for (int i = 0; i < nStars1; i++) {
@@ -89,7 +91,7 @@ public class GalaxyCollision extends Application {
 
         for (int i = 0; i < nFrames; i++) {
             System.out.println("Render " + i);
-            renderSky(i, canvas, stars, specialStars);
+            renderSky(i, canvas, stars, specialStars, mountain);
 
             if (i >= 400 && i % 10 == 0) {
                 Star star = stars.get(random.nextInt(stars.size()));
@@ -134,7 +136,7 @@ public class GalaxyCollision extends Application {
         return star;
     }
 
-    private void renderSky(int imageIndex, Canvas canvas, List<Star> stars, List<Star> moreStars) {
+    private void renderSky(int imageIndex, Canvas canvas, List<Star> stars, List<Star> moreStars, Polygon mountain) {
         int width = (int) canvas.getWidth();
         int height = (int) canvas.getHeight();
 
@@ -160,9 +162,7 @@ public class GalaxyCollision extends Application {
 
         // render horizon
         gc.setFill(Color.BLACK);
-        double[] xPoints = new double[]{ width, 0, width*0.0, width*0.2, width*0.4, width*0.6, width*0.8, width};
-        double[] yPoints = new double[]{ height, height, height-10, height-50, height-60, height-110, height-80, height-40};
-        gc.fillPolygon(xPoints, yPoints, xPoints.length);
+        gc.fillPolygon(mountain.xPoints, mountain.yPoints, mountain.xPoints.length);
 
         // snapshot
         WritableImage image = new WritableImage(width, height);
@@ -194,6 +194,40 @@ public class GalaxyCollision extends Application {
         star.step();
     }
 
+    private Polygon createMountain(double width, double height, double minHeight, double maxHeight) {
+        List<Double> mountainPoints = new ArrayList<>();
+        mountainPoints.add(minHeight);
+        mountainPoints.add(maxHeight);
+        mountainPoints.add(minHeight);
+
+        double maxDisplacement = 1.0;
+        for (int i = 0; i < 10; i++) {
+            for (int j = mountainPoints.size()-1; j > 0 ; j--) {
+                double height1 = mountainPoints.get(j);
+                double height2 = mountainPoints.get(j-1);
+                double mid = (height1 + height2) / 2;
+                double displacement = randomDouble(-maxDisplacement, maxDisplacement);
+                double midHeight = mid + Math.max(minHeight, mid - minHeight) * displacement;
+                mountainPoints.add(j, midHeight);
+            }
+            maxDisplacement = maxDisplacement / 2;
+        }
+
+        Polygon polygon = new Polygon();
+        polygon.xPoints = new double[mountainPoints.size() + 2];
+        polygon.yPoints = new double[mountainPoints.size() + 2];
+        for (int i = 0; i < mountainPoints.size(); i++) {
+            polygon.xPoints[i] = width / (mountainPoints.size()-1) * i;
+            polygon.yPoints[i] = height - mountainPoints.get(i);
+        }
+        polygon.xPoints[mountainPoints.size()] = width;
+        polygon.yPoints[mountainPoints.size()] = height;
+        polygon.xPoints[mountainPoints.size()+1] = 0;
+        polygon.yPoints[mountainPoints.size()+1] = height;
+
+        return polygon;
+    }
+
     private double randomDouble(double min, double max) {
         if (min == max) {
             return min;
@@ -221,5 +255,10 @@ public class GalaxyCollision extends Application {
             y += deltaY;
             radius *= factorRadius;
         }
+    }
+
+    private static class Polygon {
+        public double[] xPoints;
+        public double[] yPoints;
     }
 }
