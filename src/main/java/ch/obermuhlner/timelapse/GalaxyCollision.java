@@ -44,8 +44,8 @@ public class GalaxyCollision extends Application {
         Group root = new Group();
         Scene scene = new Scene(root);
 
-        double width = 800;
-        double height = 600;
+        double width = 1280;
+        double height = 720;
 
         Canvas canvas = new Canvas(width, height);
         root.getChildren().add(canvas);
@@ -62,8 +62,11 @@ public class GalaxyCollision extends Application {
 
         int nStars1 = 5000;
         int nStars2 = 5000;
-        int nFrames = 2000;
+        int nFrames = 2100;
+        int startSwingByFrame = 600;
+        int startExplosionsFrame = 700;
         int startCollisionFrame = 1500;
+        int startErosionFrame = 1860;
 
         Polygon mountain = createMountain(width, height, height / 40, height / 5);
 
@@ -72,10 +75,12 @@ public class GalaxyCollision extends Application {
             stars.add(createStar(star -> {
                 star.x = random.nextDouble() * width;
                 star.y = random.nextDouble() * height;
-                star.deltaX = random.nextGaussian() * 0.002;
-                star.deltaY = random.nextGaussian() * 0.002;
             }));
         }
+
+        double galaxyAngle = -0.758;
+        double sinGalaxyAngle = Math.sin(galaxyAngle);
+        double cosGalaxyAngle = Math.cos(galaxyAngle);
 
         double galaxyRadius = Math.min(width, height);
         for (int i = 0; i < nStars2; i++) {
@@ -88,8 +93,10 @@ public class GalaxyCollision extends Application {
                 } while(star.y < -height);
                 star.x += 2.5 * width;
                 star.y += -1.5 * height;
-                star.deltaX = -1.2 + random.nextGaussian() * 0.002;
-                star.deltaY = 1.1 + random.nextGaussian() * 0.002;
+                double speed = randomDouble(1.2, 2.5);
+                star.deltaX = sinGalaxyAngle * speed;
+                star.deltaY = cosGalaxyAngle * speed;
+                star.distance = 1.5 / speed;
             }));
         }
 
@@ -104,13 +111,12 @@ public class GalaxyCollision extends Application {
             System.out.println("Render " + i);
             renderSky(i, canvas, stars, specialStars, mountain);
 
-            if (i >= 600 && i % 10 == 0) {
+            if (i >= startSwingByFrame && i % 20 == 0) {
                 Star star = stars.get(random.nextInt(stars.size()));
-                star.deltaX = random.nextDouble() * 1.0;
-                star.deltaY = random.nextDouble() * 1.0;
-                star.factorRadius = random.nextDouble() * 0.10 + 0.90;
+                star.deltaX = randomDouble(-1.5, 1.5);
+                star.deltaY = randomDouble(-1.5, 1.5);
             }
-            if (i >= 650 && i % 50 == 0) {
+            if (i >= startExplosionsFrame && i % 50 == 0) {
                 Star star = stars.get(random.nextInt(stars.size()));
                 star.deltaX = 0;
                 star.deltaY = 0;
@@ -125,6 +131,9 @@ public class GalaxyCollision extends Application {
                 //collidingStar.deltaY = (centerY - collidingStar.y) / (nFrames - startCollisionFrame);
                 collidingStar.factorRadius = Math.pow(width * 2, 1.0 / (nFrames - startCollisionFrame));
             }
+            if (i > startErosionFrame) {
+                erodeMountain(mountain, height);
+            }
         }
     }
 
@@ -138,12 +147,12 @@ public class GalaxyCollision extends Application {
         } else {
             brightness = random.nextGaussian() * 0.3 + 0.4;
         }
-        brightness = clamp(brightness, 0.0, 1.0);
-        star.radius = brightness * 1.1;
+        brightness /= star.distance;
+        star.radius = Math.max(0.1, brightness * 1.1);
         star.color = Color.hsb(
                 random.nextDouble() * 360,
                 random.nextDouble() * 0.2,
-                brightness);
+                clamp(brightness, 0.0, 1.0));
         return star;
     }
 
@@ -217,9 +226,30 @@ public class GalaxyCollision extends Application {
     }
 
     private void renderStar(GraphicsContext gc, Star star, double offsetX, double offsetY, double offsetRadius) {
-        gc.setFill(star.color);
+        double centerX = star.x + offsetX;
+        double centerY = star.y + offsetY;
         double radius = star.radius + offsetRadius;
-        gc.fillOval(star.x + offsetX - radius, star.y + offsetY - radius, radius * 2, radius * 2);
+
+        if (radius > 6) {
+            radius = 0.01 * radius * radius + radius * 2;
+            RadialGradient starGradient = new RadialGradient(
+                    0,
+                    0,
+                    centerX,
+                    centerY,
+                    radius,
+                    false,
+                    CycleMethod.NO_CYCLE,
+                    new Stop(0.00, star.color),
+                    new Stop(0.50, star.color),
+                    new Stop(0.55, new Color(star.color.getRed(), star.color.getGreen(), star.color.getBlue(), 0.2)),
+                    new Stop(1.00, new Color(star.color.getRed(), star.color.getGreen(), star.color.getBlue(), 0.0)));
+            gc.setFill(starGradient);
+        } else {
+            gc.setFill(star.color);
+        }
+
+        gc.fillOval(centerX - radius, centerY - radius, radius * 2, radius * 2);
 
         star.step();
     }
@@ -231,13 +261,13 @@ public class GalaxyCollision extends Application {
         mountainPoints.add(minHeight);
 
         double maxDisplacement = 1.0;
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 7; i++) {
             for (int j = mountainPoints.size()-1; j > 0 ; j--) {
                 double height1 = mountainPoints.get(j);
                 double height2 = mountainPoints.get(j-1);
                 double mid = (height1 + height2) / 2;
                 double displacement = randomDouble(-maxDisplacement, maxDisplacement);
-                double midHeight = mid + Math.max(minHeight, mid - minHeight) * displacement;
+                double midHeight = mid + Math.max(minHeight, mid - minHeight) * displacement - 0.5;
                 mountainPoints.add(j, midHeight);
             }
             maxDisplacement = maxDisplacement / 2;
@@ -256,6 +286,15 @@ public class GalaxyCollision extends Application {
         polygon.yPoints[mountainPoints.size()+1] = height;
 
         return polygon;
+    }
+
+    private void erodeMountain(Polygon mountain, double height) {
+        for (int i = 0; i < mountain.yPoints.length - 2; i++) {
+            double erosion = randomDouble(0.985, 0.990);
+            double pointHeight = height - mountain.yPoints[i];
+            pointHeight = pointHeight * erosion;
+            mountain.yPoints[i] = height - pointHeight;
+        }
     }
 
     private double randomDouble(double min, double max) {
@@ -278,6 +317,7 @@ public class GalaxyCollision extends Application {
     private static class Star {
         public double x;
         public double y;
+        public double distance = 1.0;
         public double radius;
         public Color color;
 
