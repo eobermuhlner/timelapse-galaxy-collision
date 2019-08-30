@@ -24,6 +24,15 @@ import java.util.Random;
 import java.util.function.Consumer;
 
 public class GalaxyCollision extends Application {
+
+    private static final Color HORIZON_START_COLOR = Color.TURQUOISE;
+    private static final Color HORIZON_MID_COLOR = new Color(0.0, 0.0, 0.15, 1.0);
+    private static final Color HORIZON_END_COLOR = new Color(0.0, 0.0, 0.1, 1.0);
+
+    private static final Color SKY_START_COLOR = new Color(0.5294118f, 0.80784315f, 0.98039216f, 0.0);
+    private static final Color SKY_MID_COLOR = new Color(0.5294118f, 0.80784315f, 0.98039216f, 0.9);
+    private static final Color SKY_END_COLOR = Color.ORANGERED;
+
     public static void main(String[] args) {
         launch(args);
     }
@@ -53,8 +62,8 @@ public class GalaxyCollision extends Application {
 
         int nStars1 = 5000;
         int nStars2 = 5000;
-        int nFrames = 1500;
-        int startCollisionFrame = 1000;
+        int nFrames = 2000;
+        int startCollisionFrame = 1500;
 
         Polygon mountain = createMountain(width, height, height / 40, height / 5);
 
@@ -63,6 +72,8 @@ public class GalaxyCollision extends Application {
             stars.add(createStar(star -> {
                 star.x = random.nextDouble() * width;
                 star.y = random.nextDouble() * height;
+                star.deltaX = random.nextGaussian() * 0.002;
+                star.deltaY = random.nextGaussian() * 0.002;
             }));
         }
 
@@ -75,10 +86,10 @@ public class GalaxyCollision extends Application {
                 do {
                     star.y = random.nextGaussian() * galaxyRadius;
                 } while(star.y < -height);
-                star.x += 2 * width;
-                star.y += -height;
-                star.deltaX = -1.2;
-                star.deltaY = 1.1;
+                star.x += 2.5 * width;
+                star.y += -1.5 * height;
+                star.deltaX = -1.2 + random.nextGaussian() * 0.002;
+                star.deltaY = 1.1 + random.nextGaussian() * 0.002;
             }));
         }
 
@@ -93,13 +104,13 @@ public class GalaxyCollision extends Application {
             System.out.println("Render " + i);
             renderSky(i, canvas, stars, specialStars, mountain);
 
-            if (i >= 400 && i % 10 == 0) {
+            if (i >= 600 && i % 10 == 0) {
                 Star star = stars.get(random.nextInt(stars.size()));
                 star.deltaX = random.nextDouble() * 1.0;
                 star.deltaY = random.nextDouble() * 1.0;
                 star.factorRadius = random.nextDouble() * 0.10 + 0.90;
             }
-            if (i >= 450 && i % 50 == 0) {
+            if (i >= 650 && i % 50 == 0) {
                 Star star = stars.get(random.nextInt(stars.size()));
                 star.deltaX = 0;
                 star.deltaY = 0;
@@ -136,7 +147,7 @@ public class GalaxyCollision extends Application {
         return star;
     }
 
-    private void renderSky(int imageIndex, Canvas canvas, List<Star> stars, List<Star> moreStars, Polygon mountain) {
+    private void renderSky(int imageIndex, Canvas canvas, List<Star> stars, List<Star> specialStars, Polygon mountain) {
         int width = (int) canvas.getWidth();
         int height = (int) canvas.getHeight();
 
@@ -150,15 +161,34 @@ public class GalaxyCollision extends Application {
                 height * 2,
                 false,
                 CycleMethod.NO_CYCLE,
-                new Stop(0, Color.TURQUOISE),
-                new Stop(0.8, new Color(0.0, 0.0, 0.15, 1.0)),
-                new Stop(1.0, new Color(0.0, 0.0, 0.1, 1.0)));
+                new Stop(0, HORIZON_START_COLOR),
+                new Stop(0.8, HORIZON_MID_COLOR),
+                new Stop(1.0, HORIZON_END_COLOR));
         gc.setFill(skyGradient);
         gc.fillRect(0, 0, width, height);
 
         // render stars
         renderStars(gc, stars);
-        renderStars(gc, moreStars);
+
+        // render blue sky (depends on special stars)
+        if (!specialStars.isEmpty()) {
+            double radius = specialStars.stream().mapToDouble(star -> star.radius).max().getAsDouble();
+            final double startRadius = 6;
+            final double midRadius = 40;
+            final double endRadius = 200;
+            if (radius > startRadius && radius <= midRadius) {
+                double gradient = smoothstep((radius - startRadius) / (midRadius - startRadius), 0.0, 1.0);
+                gc.setFill(SKY_START_COLOR.interpolate(SKY_MID_COLOR, gradient));
+                gc.fillRect(0, 0, width, height);
+            } else if (radius > midRadius) {
+                double gradient = smoothstep((radius - midRadius) / (endRadius - midRadius), 0.0, 1.0);
+                gc.setFill(SKY_MID_COLOR.interpolate(SKY_END_COLOR, gradient));
+                gc.fillRect(0, 0, width, height);
+            }
+        }
+
+        // render special stars
+        renderStars(gc, specialStars);
 
         // render horizon
         gc.setFill(Color.BLACK);
@@ -234,6 +264,11 @@ public class GalaxyCollision extends Application {
         }
 
         return random.nextDouble() * (max - min) + min;
+    }
+
+    private static double smoothstep(double value, double edge0, double edge1) {
+        value = clamp((value - edge0) / (edge1 - edge0), 0.0, 1.0);
+        return value * value * (3 - 2 * value);
     }
 
     private static double clamp(double value, double min, double max) {
